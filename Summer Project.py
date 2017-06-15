@@ -30,7 +30,7 @@ def resourceAllocation(a, r, kValue, seed):
             myFile.write('Resource ' + str(resource) + ',' + ' ')
         myFile.write('\n')
         #CHANGE SEED FOR EACH ITERATION
-        x = x + 1
+        x = x + 1 #JD: This is probably going going to lead to highly non-random behaviours and should be removed.
     myFile.close()
 
 def resourceChecker(r, kValue):
