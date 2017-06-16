@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt; plt.rcdefaults()
 import numpy as np
 import matplotlib.pyplot as plt
 
-def randomResources(resources, kValue, seedValue):
-    random.seed(seedValue)
+def randomResources(resources, kValue):
     newResources = resources[:]
     selectedResources = []
     for i in range(kValue):
@@ -22,15 +21,15 @@ def resourceAllocation(a, r, kValue, seed):
     for resource in range(r):
         resources.append(resource)
     myFile = open('new.txt', 'w+')
-    x = seed
+    random.seed(seed)
     for agent in agents:
-        agentResources = randomResources(resources, kValue, x)
+        agentResources = randomResources(resources, kValue)
         myFile.write('Agent ' + str(agent) + ' ---> ')
         for resource in agentResources:
             myFile.write('Resource ' + str(resource) + ',' + ' ')
         myFile.write('\n')
-        #CHANGE SEED FOR EACH ITERATION
-        x = x + 1 #JD: This is probably going going to lead to highly non-random behaviours and should be removed.
+        #x = x + 1   #JD: This is probably going going to lead to highly non-random behaviours and should be removed.
+        #JM seed changer removed
     myFile.close()
 
 def resourceChecker(r, kValue):
@@ -52,6 +51,7 @@ def resourceChecker(r, kValue):
     standard_deviation = statistics.pstdev(values)
     
    #GRAPHING
+    fig = plt.figure()
     y_pos = np.arange(len(values))
     plt.bar(y_pos, values, align = 'center', alpha = 0.5)
     plt.ylabel('Number of Occurances')
@@ -59,9 +59,11 @@ def resourceChecker(r, kValue):
     plt.title('Distribution of object Occurances at k =' + str(kValue))
     plt.text(50, 20, ('Mean: ' + str(mean)))
     plt.text(50, 10, ('SD: ' + str(standard_deviation)))
+    #JM saving output of data as svg file.  
+    fig.savefig('data.svg')
     plt.show()
 
 
-resourceAllocation(10000, 100, 1, 1)
+resourceAllocation(10000, 100, 5, 678807)
 
 resourceChecker(100, 1)
