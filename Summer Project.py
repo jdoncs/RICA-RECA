@@ -94,12 +94,16 @@ def RECA(preferenceFile): #JM implementing RECA
         else:
             assignedAgent = random.choice(eqClasses[key])
             assignments.write(str(key) + ': ' + str(assignedAgent) + '\n')
-            eqClasses[key].remove(assignedAgent)
+            eqClasses[key].remove(assignedAgent) 
             assignedObjects.append(int(key.strip('Resource ')))
             for agent in eqClasses[key]:
                 unassignedAgents.append(agent)
                 
     #printing remaining assignments
+    #### JD: I think this line will cause some problems, depending on how it's implemented.
+    # It's a double comprehension, so it may be quadtratic time. Might be good to profile it.
+    # If the bottleneck is here, just re-write it as a loop with a filter. It might already be
+    # doing this under the hood though.
     unassignedObjects = [x for x in resourceNumbers if x not in assignedObjects]
     random.shuffle(unassignedObjects)
     random.shuffle(unassignedAgents)
