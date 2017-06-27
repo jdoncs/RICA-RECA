@@ -3,6 +3,7 @@ import statistics
 import matplotlib.pyplot as plt; plt.rcdefaults()
 import numpy as np
 import matplotlib.pyplot as plt
+import linecache
 
 def randomResources(resources, kValue):
     newResources = resources[:]
@@ -79,12 +80,12 @@ def RECA(preferenceFile): #JM implementing RECA
         else:
             eqClasses[line.rstrip(' \n')] = [currentAgent]  
         currentAgent += 1
-        
+    
     #making list of total resources   
     resourceNumbers = []
     for i in range(currentAgent):
         resourceNumbers.append(i)
-    assignments = open('RECA_Assignments.txt', 'w+')    
+    assignments = open('Assignments.txt', 'w+')    
     for key in eqClasses:
         if len(eqClasses[key]) == 1:
             assignments.write(str(key) + ': ' + str(eqClasses[key][0]) + '\n')
@@ -106,9 +107,55 @@ def RECA(preferenceFile): #JM implementing RECA
     for pair in remainingAssignments:
         assignments.write('Resource ' + str(pair[0]) + ': ' + str(pair[1]) + '\n')
 
+def RICA(preferenceFile):
+    
 
-resourceAllocation(100, 140, 1, 678807)
-
-resourceChecker(100, 1)
-#will have to find where your document is saved on computer and use double backslashes
+def assignmentChecker():
+    preferences = open('new.txt', 'r')
+    preferences = preferences.read().splitlines()
+    preferences.pop(0)
+    envyValue = 0
+    paretoSwaps = 0
+    baseAgent = 0
+    
+    #finding agent preferences
+    assignments = open('Assignments.txt', 'r')
+    assignments = assignments.read().splitlines()
+    for line in preferences:
+        stripped = line.strip('Resource ')
+        preference = stripped.split(' ')
+        preference = list(map(int, preference))
+        #finding primary comparator agent n
+        for lines in assignments:
+            agent = int(lines.split(':')[1].strip(' '))
+            resource = int(lines.split(':')[0].strip('Resource '))
+            if agent == baseAgent:
+                #envy-freeness
+                if resource not in preference:
+                    #see if any item in preference is in assignments if item is not in current preferences
+                    for item in preference:
+                            if item in [int(x.split(':')[0].strip('Resource ')) for x in assignments]:
+                                envyValue += 1
+                                break
+    #Pareto-Efficency, comment out to improve speed, as pareto efficency is at 0                            
+            else:
+                #JM this monstrosity creates an integer list of preferences for the base agent...
+                basePreference = list(map(int, linecache.getline('new.txt', baseAgent + 2).strip('Resource ' + '\n').split(' ')))
+                for has in assignments:
+                    if  int(has.split(':')[1].strip(' ')) == baseAgent:
+                        baseResource =  int(has.split(':')[0].strip('Resource '))
+                        
+                #if neither are happy
+                if resource not in preference and baseResource not in basePreference:
+                    if resource in basePreference or baseResource in preference:
+                        paretoSwaps += 1
+                        break
+        baseAgent += 1
+    paretoSwaps = paretoSwaps / 2
+    
+    print('Pareto-Swaps = ' + str(paretoSwaps) + ', ' + 'EnvyValue = ' + str(envyValue))
+    return(envyValue, paretoSwaps)
+resourceAllocation(10000, 10000, 1, random.randint(0, 100000))   
+#resourceChecker(10000, 1)
 RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+assignmentChecker()
