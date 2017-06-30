@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt; plt.rcdefaults()
 import numpy as np
 import matplotlib.pyplot as plt
 import linecache
+import time
 
 def randomResources(resources, kValue):
     newResources = resources[:]
@@ -104,7 +105,9 @@ def RECA(preferenceFile): #JM implementing RECA
     # It's a double comprehension, so it may be quadtratic time. Might be good to profile it.
     # If the bottleneck is here, just re-write it as a loop with a filter. It might already be
     # doing this under the hood though.
-    unassignedObjects = [x for x in resourceNumbers if x not in assignedObjects]
+    #JM Making assignedObjects a set increases preformance considerably (O(n) --> O(1) time)
+    assignedObjectsSet = set(assignedObjects)
+    unassignedObjects = [x for x in resourceNumbers if x not in assignedObjectsSet]
     random.shuffle(unassignedObjects)
     random.shuffle(unassignedAgents)
     remainingAssignments = zip(unassignedObjects, unassignedAgents)
@@ -112,8 +115,66 @@ def RECA(preferenceFile): #JM implementing RECA
         assignments.write('Resource ' + str(pair[0]) + ': ' + str(pair[1]) + '\n')
 
 def RICA(preferenceFile):
-    
+    myFile = open(preferenceFile, 'r')
+    next(myFile) #skips the first line of file
+    assignments = open('Assignments.txt', 'w+')    
+    assignedObjects = []
+    unassignedAgents = []
+    resourceNumbers = []
+    eqClasses = {}
+    currentAgent = 0
 
+    #Dictionary of preferences
+    for line in myFile:
+        x = line.replace('Resource ', '')
+        items = x.split(' ')
+        for item in items:
+            if item == '' or item == '\n':
+                continue
+            if item in eqClasses:
+                eqClasses[item].append(currentAgent)
+            else:
+                eqClasses[item] = [currentAgent]
+        unassignedAgents.append(str(currentAgent))
+        currentAgent += 1
+        
+    #making list of resources
+    for i in range(currentAgent):
+        resourceNumbers.append(i)
+
+    while len(eqClasses) > 0:
+        #find smallest lists
+        #JM this is painfully slow but works, need to speed up
+        minLength = min([len(n) for n in eqClasses.values()])
+        keys = [k for k in eqClasses.keys() if len(eqClasses.get(k)) == minLength]
+        #min([len(n) for n in eqClasses.values()])
+            #choose one randomly
+        randObject = random.choice(keys)
+       #choose item from list randomly
+        randAgent = random.choice(eqClasses[randObject])
+##        randObject = min(eqClasses, key = eqClasses.get)
+##        randAgent = random.choice(eqClasses[randObject])
+       # print(randAgent)
+        assignments.write('Resource ' + str(randObject) + ': ' + str(randAgent) + '\n')
+            #remove that entry, and that item from all other lists
+        eqClasses.pop(randObject)
+        assignedObjects.append(randObject)
+        unassignedAgents.remove(str(randAgent))
+        for key in eqClasses:
+            if randAgent in eqClasses[key]:
+                eqClasses[key].remove(randAgent)
+        eqClasses = {k: v for k, v in eqClasses.items() if v}
+        
+            
+    #match remaining agents with remaining resources
+    assignedObjectsSet = set(assignedObjects)
+    unassignedObjects = [x for x in resourceNumbers if x not in assignedObjectsSet]
+    random.shuffle(unassignedObjects)
+    random.shuffle(unassignedAgents)
+    remainingAssignments = zip(unassignedObjects, unassignedAgents)
+    for pair in remainingAssignments:
+        assignments.write('Resource ' + str(pair[0]) + ': ' + str(pair[1]) + '\n')
+    
 def assignmentChecker():
     preferences = open('new.txt', 'r')
     preferences = preferences.read().splitlines()
@@ -126,8 +187,9 @@ def assignmentChecker():
     assignments = open('Assignments.txt', 'r')
     assignments = assignments.read().splitlines()
     for line in preferences:
-        stripped = line.strip('Resource ')
-        preference = stripped.split(' ')
+        x = line.replace('Resource ', '')
+        preference  = x.split(' ')
+        preference.pop()
         preference = list(map(int, preference))
         #finding primary comparator agent n
         for lines in assignments:
@@ -141,25 +203,34 @@ def assignmentChecker():
                             if item in [int(x.split(':')[0].strip('Resource ')) for x in assignments]:
                                 envyValue += 1
                                 break
-    #Pareto-Efficency, comment out to improve speed, as pareto efficency is at 0                            
-            else:
-                #JM this monstrosity creates an integer list of preferences for the base agent...
-                basePreference = list(map(int, linecache.getline('new.txt', baseAgent + 2).strip('Resource ' + '\n').split(' ')))
-                for has in assignments:
-                    if  int(has.split(':')[1].strip(' ')) == baseAgent:
-                        baseResource =  int(has.split(':')[0].strip('Resource '))
-                        
-                #if neither are happy
-                if resource not in preference and baseResource not in basePreference:
-                    if resource in basePreference or baseResource in preference:
-                        paretoSwaps += 1
-                        break
+##    #Pareto-Efficency, comment out to improve speed, as pareto efficency is at 0                            
+##            else:
+##                #JM this monstrosity creates an integer list of preferences for the base agent...
+##                basePreference = list(map(int, linecache.getline('new.txt', baseAgent + 2).strip('Resource ' + '\n').split(' ')))
+##                for has in assignments:
+##                    if  int(has.split(':')[1].strip(' ')) == baseAgent:
+##                        baseResource =  int(has.split(':')[0].strip('Resource '))
+##                        
+##                #if neither are happy
+##                if resource not in preference and baseResource not in basePreference:
+##                    if resource in basePreference or baseResource in preference:
+##                        paretoSwaps += 1
+##                        break
         baseAgent += 1
     paretoSwaps = paretoSwaps / 2
     
     print('Pareto-Swaps = ' + str(paretoSwaps) + ', ' + 'EnvyValue = ' + str(envyValue))
     return(envyValue, paretoSwaps)
+
 resourceAllocation(10000, 10000, 1, random.randint(0, 100000))   
 #resourceChecker(10000, 1)
+start_time = time.clock()
 RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
-assignmentChecker()
+print("--- %s seconds ---" % (time.clock() - start_time))
+#assignmentChecker()
+
+##resourceAllocation(10000, 10000, 3, random.randint(0, 100000))
+##start_time = time.clock()
+##RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+##print("--- %s seconds ---" % (time.clock() - start_time))
+###assignmentChecker()
