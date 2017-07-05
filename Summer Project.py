@@ -64,7 +64,7 @@ def resourceChecker(r, kValue):
     plt.text(50, 10, ('SD: ' + str(standard_deviation)))
     #JM saving output of graph as svg file.  
     fig.savefig('data.svg')
-    # plt.show() JM we know this works, so editing out for now
+    plt.show() 
 
 def RECA(preferenceFile): #JM implementing RECA
     myFile = open(preferenceFile, 'r')
@@ -137,35 +137,34 @@ def RICA(preferenceFile):
                 eqClasses[item] = [currentAgent]
         unassignedAgents.append(str(currentAgent))
         currentAgent += 1
-        
     #making list of resources
     for i in range(currentAgent):
         resourceNumbers.append(i)
-
-    while len(eqClasses) > 0:
+        
+    while len(eqClasses) != 0:
         #find smallest lists
         #JM this is painfully slow but works, need to speed up
-        minLength = min([len(n) for n in eqClasses.values()])
-        keys = [k for k in eqClasses.keys() if len(eqClasses.get(k)) == minLength]
-        #min([len(n) for n in eqClasses.values()])
-            #choose one randomly
-        randObject = random.choice(keys)
+        #minLength = min([len(n) for n in eqClasses.values()])
+        minLength = min(map(len, eqClasses.values()))
+        #keys = [k for k in eqClasses.keys() if len(eqClasses[k]) == minLength]
+        #choose one randomly
+        #randObject = random.choice(keys)
+        for key in eqClasses:
+            if len(eqClasses[key]) == minLength:
+                randObject = key
+                break
+
        #choose item from list randomly
         randAgent = random.choice(eqClasses[randObject])
-##        randObject = min(eqClasses, key = eqClasses.get)
-##        randAgent = random.choice(eqClasses[randObject])
-       # print(randAgent)
         assignments.write('Resource ' + str(randObject) + ': ' + str(randAgent) + '\n')
-            #remove that entry, and that item from all other lists
+        #remove that entry, and that item from all other lists
         eqClasses.pop(randObject)
         assignedObjects.append(randObject)
         unassignedAgents.remove(str(randAgent))
         for key in eqClasses:
-            if randAgent in eqClasses[key]:
-                eqClasses[key].remove(randAgent)
+            if randAgent in eqClasses[key]: eqClasses[key].remove(randAgent)
         eqClasses = {k: v for k, v in eqClasses.items() if v}
         
-            
     #match remaining agents with remaining resources
     assignedObjectsSet = set(assignedObjects)
     unassignedObjects = [x for x in resourceNumbers if x not in assignedObjectsSet]
@@ -174,13 +173,45 @@ def RICA(preferenceFile):
     remainingAssignments = zip(unassignedObjects, unassignedAgents)
     for pair in remainingAssignments:
         assignments.write('Resource ' + str(pair[0]) + ': ' + str(pair[1]) + '\n')
+        
+def paretoChecker():
+    preferences = open('new.txt', 'r')
+    preferences = preferences.read().splitlines()
+    preferences.pop(0)
+    paretoSwaps = 0
+    baseAgent = 0
     
-def assignmentChecker():
+    #finding agent preferences
+    assignments = open('Assignments.txt', 'r')
+    assignments = assignments.read().splitlines()
+    for line in preferences:
+        x = line.replace('Resource ', '')
+        preference  = x.split(' ')
+        preference.pop()
+        preference = list(map(int, preference))
+        y = linecache.getline('new.txt', baseAgent + 2)
+        basePreference  = y.split(' ')
+        basePreference.pop()
+        basePreference = list(map(int, preference))     
+        #finding primary comparator agent n
+        for lines in assignments:
+            agent = int(lines.split(':')[1].strip(' '))
+            resource = int(lines.split(':')[0].strip('Resource '))
+            if resource not in preference and agent != baseAgent:   
+                #comparison
+                if resource in basePreference:
+                    paretoSwaps += 1
+                    break
+        baseAgent += 1
+    paretoSwaps = paretoSwaps / 2
+
+    return paretoSwaps
+
+def envyChecker():
     preferences = open('new.txt', 'r')
     preferences = preferences.read().splitlines()
     preferences.pop(0)
     envyValue = 0
-    paretoSwaps = 0
     baseAgent = 0
     
     #finding agent preferences
@@ -196,41 +227,88 @@ def assignmentChecker():
             agent = int(lines.split(':')[1].strip(' '))
             resource = int(lines.split(':')[0].strip('Resource '))
             if agent == baseAgent:
-                #envy-freeness
                 if resource not in preference:
                     #see if any item in preference is in assignments if item is not in current preferences
                     for item in preference:
                             if item in [int(x.split(':')[0].strip('Resource ')) for x in assignments]:
                                 envyValue += 1
                                 break
-##    #Pareto-Efficency, comment out to improve speed, as pareto efficency is at 0                            
-##            else:
-##                #JM this monstrosity creates an integer list of preferences for the base agent...
-##                basePreference = list(map(int, linecache.getline('new.txt', baseAgent + 2).strip('Resource ' + '\n').split(' ')))
-##                for has in assignments:
-##                    if  int(has.split(':')[1].strip(' ')) == baseAgent:
-##                        baseResource =  int(has.split(':')[0].strip('Resource '))
-##                        
-##                #if neither are happy
-##                if resource not in preference and baseResource not in basePreference:
-##                    if resource in basePreference or baseResource in preference:
-##                        paretoSwaps += 1
-##                        break
         baseAgent += 1
-    paretoSwaps = paretoSwaps / 2
     
-    print('Pareto-Swaps = ' + str(paretoSwaps) + ', ' + 'EnvyValue = ' + str(envyValue))
-    return(envyValue, paretoSwaps)
+    return envyValue
 
-resourceAllocation(10000, 10000, 1, random.randint(0, 100000))   
-#resourceChecker(10000, 1)
-start_time = time.clock()
-RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
-print("--- %s seconds ---" % (time.clock() - start_time))
-#assignmentChecker()
+def timeGraph(maxAgents, maxResources, resolution, kValue, algorithm):
+    times = []
+    agents = []
+    divisions = int(maxAgents / resolution)
+    resourceDivisions = maxResources / resolution
+    for x in range(1, resolution):
+        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, random.randint(0, 100000))
+        if algorithm == 'RICA':
+            start_time = time.clock()
+            RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            times.append(time.clock() - start_time)
+        elif algorithm == 'RECA':
+            start_time = time.clock()
+            RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            times.append(time.clock() - start_time)
+        agents.append(int(maxAgents / resolution * x))
+    plt.plot(agents, times)
+    plt.show()
+    #graph times
 
-##resourceAllocation(10000, 10000, 3, random.randint(0, 100000))
-##start_time = time.clock()
-##RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
-##print("--- %s seconds ---" % (time.clock() - start_time))
-###assignmentChecker()
+            
+def paretoGraph(maxAgents, maxResources, resolution, kValue, algorithm):
+    paretos = []
+    agents = []
+    divisions = int(maxAgents / resolution)
+    resourceDivisions = maxResources / resolution
+    for x in range(1, resolution):
+        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, random.randint(0, 100000))
+        if algorithm == 'RICA':
+            RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            paretos.append(paretoChecker())
+        elif algorithm == 'RECA':
+            RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            paretos.append(paretoChecker())
+        agents.append(int(maxAgents / resolution * x))
+    plt.plot(agents, paretos)
+    plt.show()
+    #graph
+    
+def envyGraph(maxAgents, maxResources, resolution, kValue, algorithm):
+    envys = []
+    agents = []
+    divisions = int(maxAgents / resolution)
+    resourceDivisions = maxResources / resolution
+    for x in range(1, resolution):
+        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, random.randint(0, 100000))
+        if algorithm == 'RICA':
+            RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            envys.append(envyChecker())
+        elif algorithm == 'RECA':
+            RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            envys.append(envyChecker())
+        agents.append(int(maxAgents / resolution * x))
+    plt.plot(agents, envys)
+    plt.show()
+    #graph
+
+def envyRICA(agents, resources, maxkValue):
+    envys = []
+    values = []
+    for x in range(1, maxkValue):
+         resourceAllocation(agents, resources, x, random.randint(0, 100000))
+         RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+         envys.append(envyChecker())
+         values.append(x)
+    plt.plot(values, envys)
+    plt.xticks(values)
+    plt.show()
+    
+envyRICA(1000, 1000, 5)
+
+
+
+
+
