@@ -5,7 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import linecache
 import time
-
+import itertools
+from scipy.optimize import linear_sum_assignment
+import re
+import os
+        
 def randomResources(resources, kValue):
     newResources = resources[:]
     selectedResources = []
@@ -15,24 +19,25 @@ def randomResources(resources, kValue):
         newResources.remove(newItem)
     return selectedResources
 
-def resourceAllocation(a, r, kValue, seed):
-    agents = []
-    resources = []
-    for agent in range(a):
-        agents.append(agent)
-    for resource in range(r):
-        resources.append(resource)
+def resourceAllocation(a, r, kValue,  initialAllocations, seed):
+    resources = [i for i in range(r)]
     myFile = open('new.txt', 'w+')
-    myFile.write('Agents: ' + str(a) + ', Resources: ' + str(r) + ', K Value: ' + str(kValue) + '\n') #JM made data representation the same as Selena's
+    myFile.write('Agents: ' + str(a) + ' Resources: ' + str(r) + ' K Value: ' + str(kValue) + '\n') #JM made data representation the same as Selena's
     random.seed(seed)
-    for agent in agents:
-        agentResources = randomResources(resources, kValue)
+    agentResources = [randomResources(resources, kValue) for j in range(a)]
+    if initialAllocations == 0:
         for resource in agentResources:
-            myFile.write('Resource ' + str(resource) + ' ')
-        myFile.write('\n')
-        #x = x + 1   #JD: This is probably going going to lead to highly non-random behaviours and should be removed.
-                          #JM seed changer removed
-    myFile.close()
+            myFile.write(str(resource)[1: -1] + ' ' + '\n')
+        myFile.close()
+    else:
+        randomitems = random.sample([i for i in range(r)], initialAllocations)
+        for resource in agentResources:
+            if len(randomitems) == 0:
+                myFile.write(str(resource)[1: -1] + ' ' + '\n')
+            else:
+                myFile.write(str(resource)[1: -1] + ', r' + str(randomitems.pop(0)) + ' \n')
+        myFile.close()
+    
 
 def resourceChecker(r, kValue):
     #creating data
@@ -83,9 +88,7 @@ def RECA(preferenceFile): #JM implementing RECA
         currentAgent += 1
     
     #making list of total resources   
-    resourceNumbers = []
-    for i in range(currentAgent):
-        resourceNumbers.append(i)
+    resourceNumbers = [i for i in range(currentAgent)]
     assignments = open('Assignments.txt', 'w+')    
     for key in eqClasses:
         if len(eqClasses[key]) == 1:
@@ -99,12 +102,6 @@ def RECA(preferenceFile): #JM implementing RECA
             assignedObjects.append(int(key.strip('Resource ')))
             for agent in eqClasses[key]:
                 unassignedAgents.append(agent)
-                
-    #printing remaining assignments
-    #### JD: I think this line will cause some problems, depending on how it's implemented.
-    # It's a double comprehension, so it may be quadtratic time. Might be good to profile it.
-    # If the bottleneck is here, just re-write it as a loop with a filter. It might already be
-    # doing this under the hood though.
     #JM Making assignedObjects a set increases preformance considerably (O(n) --> O(1) time)
     assignedObjectsSet = set(assignedObjects)
     unassignedObjects = [x for x in resourceNumbers if x not in assignedObjectsSet]
@@ -120,14 +117,13 @@ def RICA(preferenceFile):
     assignments = open('Assignments.txt', 'w+')    
     assignedObjects = []
     unassignedAgents = []
-    resourceNumbers = []
     eqClasses = {}
     currentAgent = 0
 
     #Dictionary of preferences
     for line in myFile:
-        x = line.replace('Resource ', '')
-        items = x.split(' ')
+        x = line.replace('Resource ', '').replace(' \n' , '')
+        items = x.split(',')
         for item in items:
             if item == '' or item == '\n':
                 continue
@@ -138,9 +134,8 @@ def RICA(preferenceFile):
         unassignedAgents.append(str(currentAgent))
         currentAgent += 1
     #making list of resources
-    for i in range(currentAgent):
-        resourceNumbers.append(i)
-        
+    resourceNumbers = [i for i in range(currentAgent)]
+    
     while len(eqClasses) != 0:
         #find smallest lists
         #JM this is painfully slow but works, need to speed up
@@ -173,6 +168,60 @@ def RICA(preferenceFile):
     remainingAssignments = zip(unassignedObjects, unassignedAgents)
     for pair in remainingAssignments:
         assignments.write('Resource ' + str(pair[0]) + ': ' + str(pair[1]) + '\n')
+
+
+def MIR(preferenceFile):
+    #arbitrarily assign An to Bn as e(n)
+    myFile = open(preferenceFile, 'r')
+    line = myFile.readline().split()
+    #need abs(k).  if k positive, --> A > B.  Neagive --> A < B.
+    n = int(line[1])
+    m = int(line[3])
+    k = (n - m)
+    #k neg --> m > n
+    #k pos --> n > m
+    assignments = open('Assignments.txt', 'w+')
+    #defining M:
+         
+    M = [[0 for x in range(max(n,m))] for y in range(max(n,m))]
+
+    for a in range(n):
+        aLine = myFile.readline().replace('Resource ', '').replace(' \n' , '')
+        items = aLine.split(', ')
+        print(items)
+        x = items[-1]
+        y = x.replace('r' , '')
+        for item in items:
+            M[a][int(item)] = 1
+        #Finding Matching on M:
+    G = np.array(M)
+    row_ind, col_ind = linear_sum_assignment(G)
+    weight = len(M) - G[row_ind, col_ind].sum()
+
+
+    for i in range(len(M)):
+        ti = 1
+        for j in M[i]:
+            if j == 1:
+                M[i][j] = len(M) + 1
+                L = np.array(M)
+                row_ind1, col_ind1 = linear_sum_assignment(L)
+                editWeight = len(L) - L[row_ind1, col_ind1].sum()
+                if editWeight < weight:
+                    M[i][j] = 1
+                    ti = 0         
+    S = np.array(M)
+    row_ind2, col_ind2 = linear_sum_assignment(S)
+    weight1 = len(M) - S[row_ind2, col_ind2].sum()
+    if n < m:
+        phi = zip(row_ind2[0:n], col_ind2)
+    else:
+        phi = zip(row_ind2, col_ind2)
+        
+    print(M)
+    print(weight, weight1)
+    for pair in phi:
+        assignments.write('Resource ' + str(pair[1]) + ': ' + str(pair[0]) + '\n')
         
 def paretoChecker():
     preferences = open('new.txt', 'r')
@@ -186,6 +235,7 @@ def paretoChecker():
     assignments = assignments.read().splitlines()
     for line in preferences:
         x = line.replace('Resource ', '')
+        x = line.replace(',', '')
         preference  = x.split(' ')
         preference.pop()
         preference = list(map(int, preference))
@@ -219,7 +269,8 @@ def envyChecker():
     assignments = assignments.read().splitlines()
     for line in preferences:
         x = line.replace('Resource ', '')
-        preference  = x.split(' ')
+        x = line.replace(',', '')
+        preference = x.split(' ')
         preference.pop()
         preference = list(map(int, preference))
         #finding primary comparator agent n
@@ -237,13 +288,111 @@ def envyChecker():
     
     return envyValue
 
-def timeGraph(maxAgents, maxResources, resolution, kValue, algorithm):
+def experimentFromFile(file, k):
+    oData = open(file, 'r')
+    myFile = open('new.txt', 'w+')
+    resources = int(re.search(r'\d+', oData.readline()).group())
+    for i in range(resources):
+        next(oData)
+    agents = int(oData.readline().split(',')[0])
+    
+    myFile.write('Agents: ' + str(agents) + ' Resources: ' + str(resources) + ' K Value: ' + str(k) + '\n')
+
+    for i in range(agents):
+        p = oData.readline()
+        preferences = []
+        for j in range(3):
+            q = p[p.find('{')+1:p.find('}')]
+            try:
+                preferences.append(list(map(int, q.split(','))))
+            except ValueError:
+                preferences.append([])
+            r = '{' + q
+            r += '}'
+            p = p.replace(r, '')
+            
+        finalvalues = []
+        
+        if k < len(preferences[0]):
+            random.shuffle(preferences[0])
+            finalvalues.extend(preferences[0][0:k])
+
+        if len(preferences[0]) <= k and k < len(preferences[1]) + len(preferences[0]):
+            h = k - len(preferences[0])
+            finalvalues.extend(preferences[0])
+            random.shuffle(preferences[1])
+            finalvalues.extend(preferences[1][0:h])
+
+        if len(preferences[0]) + len(preferences[1]) <= k and k < len(preferences[2]):
+            h = k - (len(preferences[0]) + len(preferences[1]))
+            finalvalues.extend(preferences[0])
+            finalvalues.extend(preferences[1])
+            random.shuffle(preferences[2])
+            finalvalues.extend(preferences[2][0:h])
+
+        for x in finalvalues:
+                 if finalvalues[-1] == x:
+                     myFile.write(str(x) + ' ')
+                 else:
+                     myFile.write(str(x) + ', ')
+                 
+        myFile.write('\n')
+
+        
+def timeFromFile(file, algorithm, k):
+    experimentFromFile(file, k)
+    if algorithm == 'RICA':
+            start_time = time.clock()
+            RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            time1 = time.clock() - start_time
+    elif algorithm == 'RECA':
+        start_time = time.clock()
+        RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        time1 = time.clock() - start_time
+    elif algorithm == 'MIR':
+        start_time = time.clock()
+        MIR("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        time1 = time.clock() - start_time
+        
+    return time1
+
+def  envyFromFile(file, algorithm, k):
+    experimentFromFile(file, k)
+    if algorithm == 'RICA':
+            RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            envy = envyChecker()
+    elif algorithm == 'RECA':
+        RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        envy = envyChecker()
+    elif algorithm == 'MIR':
+        MIR("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        envy = envyChecker()
+
+    return envy
+
+def paretoFromFile(file, algorithm, k):
+    experimentFromFile(file, k)
+    if algorithm == 'RICA':
+            RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            pareto = (paretoChecker())
+    elif algorithm == 'RECA':
+        RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        pareto = (paretoChecker())
+    elif algorithm == 'MIR':
+        MIR("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        pareto = (paretoChecker())
+
+    return pareto
+
+def timeGraph(maxAgents, maxResources, resolution, kValue, initAll, algorithm):
+    if algorithm == 'RICA' or algorithm == 'RECA':
+        assert initAll == 0
     times = []
     agents = []
     divisions = int(maxAgents / resolution)
     resourceDivisions = maxResources / resolution
-    for x in range(1, resolution):
-        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, random.randint(0, 100000))
+    for x in range(1, resolution + 1):
+        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, initAll, random.randint(0, 100000))
         if algorithm == 'RICA':
             start_time = time.clock()
             RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
@@ -251,6 +400,10 @@ def timeGraph(maxAgents, maxResources, resolution, kValue, algorithm):
         elif algorithm == 'RECA':
             start_time = time.clock()
             RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            times.append(time.clock() - start_time)
+        elif algorithm == 'MIR':
+            start_time = time.clock()
+            MIR("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
             times.append(time.clock() - start_time)
         agents.append(int(maxAgents / resolution * x))
     plt.plot(agents, times)
@@ -258,36 +411,46 @@ def timeGraph(maxAgents, maxResources, resolution, kValue, algorithm):
     #graph times
 
             
-def paretoGraph(maxAgents, maxResources, resolution, kValue, algorithm):
+def paretoGraph(maxAgents, maxResources, resolution, kValue, initAll, algorithm):
+    if algorithm == 'RICA' or algorithm == 'RECA':
+        assert initAll == 0
     paretos = []
     agents = []
     divisions = int(maxAgents / resolution)
     resourceDivisions = maxResources / resolution
-    for x in range(1, resolution):
-        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, random.randint(0, 100000))
+    for x in range(1, resolution + 1):
+        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, initAll, random.randint(0, 100000))
         if algorithm == 'RICA':
             RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
             paretos.append(paretoChecker())
         elif algorithm == 'RECA':
             RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            paretos.append(paretoChecker())
+        elif algorithm == 'MIR':
+            MIR("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
             paretos.append(paretoChecker())
         agents.append(int(maxAgents / resolution * x))
     plt.plot(agents, paretos)
     plt.show()
     #graph
     
-def envyGraph(maxAgents, maxResources, resolution, kValue, algorithm):
+def envyGraph(maxAgents, maxResources, resolution, kValue, initAll, algorithm):
+    if algorithm == 'RICA' or algorithm == 'RECA':
+        assert initAll == 0
     envys = []
     agents = []
     divisions = int(maxAgents / resolution)
     resourceDivisions = maxResources / resolution
-    for x in range(1, resolution):
-        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, random.randint(0, 100000))
+    for x in range(1, resolution + 1):
+        resourceAllocation(int(maxAgents / resolution * x), int(maxResources / resolution * x), kValue, initAll, random.randint(0, 100000))
         if algorithm == 'RICA':
             RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
             envys.append(envyChecker())
         elif algorithm == 'RECA':
             RECA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+            envys.append(envyChecker())
+        elif algorithm == 'MIR':
+            MIR("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
             envys.append(envyChecker())
         agents.append(int(maxAgents / resolution * x))
     plt.plot(agents, envys)
@@ -297,18 +460,28 @@ def envyGraph(maxAgents, maxResources, resolution, kValue, algorithm):
 def envyRICA(agents, resources, maxkValue):
     envys = []
     values = []
-    for x in range(1, maxkValue):
-         resourceAllocation(agents, resources, x, random.randint(0, 100000))
+    for x in range(1, maxkValue + 1):
+         resourceAllocation(agents, resources, x, 0, random.randint(0, 100000))
          RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
          envys.append(envyChecker())
          values.append(x)
     plt.plot(values, envys)
     plt.xticks(values)
     plt.show()
-    
-envyRICA(1000, 1000, 5)
+
+def timeRICA(agents, resources, maxkValue):
+    times = []
+    values = []
+    for x in range(1, maxkValue + 1):
+        resourceAllocation(agents, resources, x, 0, random.randint(0, 100000))
+        start_time = time.clock()
+        RICA("C:\\Users\\Jake From State Farm\\Documents\\GitHub\\RICA-RECA\\new.txt")
+        times.append(time.clock() - start_time)
+        values.append(x)
+    plt.plot(values, times)
+    plt.show()
 
 
-
-
+x = envyFromFile('MD-00004-00000002.toi', 'RICA', 10)
+print(x)
 
