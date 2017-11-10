@@ -2,7 +2,7 @@
 (require "profileReader.rkt")
 (require "allocs.rkt")
 
-(struct node (profile alloc resourcesRemaining))
+(struct node (profile alloc resourcesRemaining agentsRemaining))
 
 (define (getAgentList myNodeSplits)
     (cond [(empty? myNodeSplits) empty]
@@ -17,32 +17,38 @@
 
 
 (define (node-expand mynode)
-  (define (helper children alloc resources)
+  (define (helper children alloc resources agents)
     (cond [(empty? children) (newAlloc)]
-          [else (alloc-join (node-expand (node (nodeSplit-profile (first children)) (first alloc) resources))
-                            (helper (rest children) (rest alloc) resources))]))
-  ;(display "\n\nEntering\n")
-  ;(prettyPrintProfile (first (node-profile mynode)))
+          [else (alloc-join (node-expand (node
+                                          (nodeSplit-profile (first children)) (first alloc)
+                                          resources
+                                          (filter (lambda (x)
+                                                    (not (= (nodeSplit-agent (first children)) x)))
+                                                    agents)))
+                            (helper (rest children) (rest alloc) resources agents))]))
+  (display "\n\nEntering\n")
+  (prettyPrintProfile (first (node-profile mynode)))
   (cond [(empty? (node-profile mynode)) (node-alloc mynode)]
         [(empty? (first (node-profile mynode)))
          ;(display "Merging things...\n")
                  (cond [(empty? (rest (node-profile mynode))) (node-alloc mynode)]
                        [else (define nextProf
                                (profileFilter
-                                (profileSubsetFilter (first (rest (node-profile mynode)))
-                                                     (first (node-profile mynode)))
+                                (profileAgentFilter (first (rest (node-profile mynode)))
+                                                     (node-agentsRemaining mynode))
                                 (node-resourcesRemaining mynode)))
-                             ;(prettyPrintProfile nextProf)
+                             (prettyPrintProfile nextProf)
                              (node-expand (node (cons nextProf (rest (rest (node-profile mynode))))
                                                 (node-alloc mynode)
-                                                (node-resourcesRemaining mynode)))])]
+                                                (node-resourcesRemaining mynode)
+                                                (node-agentsRemaining mynode)))])]
         [else
          ;(display "looped\n")
          (define targetResource (first (whichResourceNext (first (node-profile mynode)) (node-resourcesRemaining mynode))))
          (define children (resolve (first (node-profile mynode)) empty targetResource (node-profile mynode)))
          (define alloc (generateNextAlloc mynode children (getAgentList children)))
          (define resourcesLeft (filter (lambda (x) (not (= x targetResource))) (node-resourcesRemaining mynode)))
-         (define result (helper children alloc resourcesLeft ))
+         (define result (helper children alloc resourcesLeft (node-agentsRemaining mynode)))
          ;(display "Backing up from ")
          ;(display (prettyPrintAllocDist result))
           result])
@@ -52,10 +58,17 @@
 (define numPrefs (read))
 (define numAgents (read))
 (define numResources (read))
-(display "Done with input\n")
-(define prof (genMetaProf (cons (/ numPrefs 3) (cons (/ numPrefs 3) empty)) numAgents numResources))
-(prettyPrintMetaProfile prof)
-(define result (node-expand (node prof (newAlloc) (build-list numResources values))))
 
-(prettyPrintAllocDist result)
-(prettyPrintAllocDist (allocDist-filter result 1))
+(define (reps n)
+  
+  (define prof (genMetaProf (cons (/ numPrefs 3) (cons (/ numPrefs 3) (cons (/ numPrefs 3) empty)))
+                            numAgents numResources))
+  (prettyPrintMetaProfile prof)
+  (define result (node-expand (node prof (newAlloc) (build-list numResources values)
+                                    (map (lambda (x) (+ x 1)) (build-list numAgents values)))))
+  (prettyPrintAllocDist result)
+  (cond [(= n 0) (display "No issues.")]
+        [(profileIsEnvyFree? prof result) (reps (- n 1))]
+        [else (display "Found envy!!!\n")
+              (prettyPrintAllocDist result)]))
+(reps 1)

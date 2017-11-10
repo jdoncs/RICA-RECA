@@ -25,20 +25,28 @@
           [(= resource (allocRecord-resource (first dist))) (allocRecord-prob (first dist))]
           [else (getP (rest dist) resource)]))
   (define (sdEnvy-helper prefs cdf1 cdf2)
-    (cond [(empty? prefs) (cdf1 - cdf2)]
-          [else (sdEnvy?-helper (rest prefs)
+    (cond [(empty? prefs) (- cdf1 cdf2)]
+          [else (sdEnvy-helper (rest prefs)
                                 (+ cdf1 (getP (allocDist-records dist1) (first prefs)))
                                 (+ cdf2 (getP (allocDist-records dist2) (first prefs))))]))
   (sdEnvy-helper prefs 0 0))
 
-(define (sdMetaEnvy dist1 dist2 metaPrefs cdfAcc)
-  (cond [(empty? metaPrefs) #true]
+;Gives weak-Stochastic Dominance for dist 1 over dist2 under metaPrefence record metaPrefs.
+(define (sdMetaEnvy dist1 dist2 metaPrefs cdfAcc cdfAccPip)
+  (cond [(empty? metaPrefs) cdfAccPip]
         [else
          (define localCDFDiff (sdEnvy dist1 dist2 (first metaPrefs)))
-         (cond [(< ( + localCDFDiff cdfAcc) 0) #false]
-               [else (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff))])]))
+         (cond [(< ( + localCDFDiff cdfAcc) 0) ;(display "Envy on resource:")
+                                               ;(display (first metaPrefs))
+                                               ;(display "\n")
+                                               ;(prettyPrintAllocDist dist1)
+                                               ;(prettyPrintAllocDist dist2)
+                                               #false]
+               [(> ( + localCDFDiff cdfAcc) 0)
+                (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) #true)]
+               [else (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) cdfAccPip)])]))
                            
-  
+
 
 ;(struct node (profileList))
 

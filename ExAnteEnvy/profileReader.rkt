@@ -1,11 +1,35 @@
 #lang racket
 (provide readProfile whichResourceNext resolve nodeSplit-agent nodeSplit-resource nodeSplit-profile
          enumResources genProfile profileFilter profileSubsetFilter genMetaProf prettyPrintMetaProfile
-         prettyPrintProfile)
+         prettyPrintProfile profileIsEnvyFree? profileAgentFilter)
 (require "allocs.rkt")
 
 (struct nodeSplit (agent resource profile))
 (struct record (agent prefList))
+
+(define (extractMetaRecord metaProf agent)
+  (cond [(empty? metaProf) empty]
+        [else (cons (record-prefList (first
+                                      (filter (lambda (x) (= (record-agent x) agent))
+                                              (first metaProf))))
+                    (extractMetaRecord (rest metaProf) agent))]))                                     
+
+(define (agentHasEnvy metaProf agent fullAlloc)
+  (define (agentHasEnvy-helper recList)
+    (cond [(empty? recList) #false]
+          [(= (record-agent (first recList)) agent) (agentHasEnvy-helper (rest recList))]
+          [(sdMetaEnvy (allocDist-filter fullAlloc (record-agent (first recList)))
+                       (allocDist-filter fullAlloc agent)
+                       (extractMetaRecord metaProf agent) 0 #false) #true]
+          [else (agentHasEnvy-helper (rest recList))]))
+  (agentHasEnvy-helper (first metaProf)))
+
+(define (profileIsEnvyFree? metaProf fullAlloc)
+  (define (profileIsEnvyFree-helper recList)
+    (cond [(empty? recList) #true]
+          [(agentHasEnvy metaProf (record-agent (first recList)) fullAlloc) #false]
+          [else (profileIsEnvyFree-helper (rest recList))]))
+  (profileIsEnvyFree-helper (first metaProf)))
 
 ;(define (profile-resolve-members profile resource)
 ;  (cond [(empty? profile) empty]
@@ -34,6 +58,9 @@
                             (filter (lambda (x) (member x allowed)) (record-prefList (first prof))))
                     (profileFilter (rest prof) allowed))]))
 
+(define (profileAgentFilter prof allowed)
+  (filter (lambda (x) (member (record-agent x) allowed)) prof))
+         
 ;Filters out rows in prof for any agents that do not also appear in otherProf
 (define (profileSubsetFilter prof otherProf)
   ;(prettyPrintProfile prof)
