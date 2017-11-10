@@ -1,5 +1,5 @@
 #lang racket
-(provide assign newAlloc alloc-join prettyPrintAllocDist allocDist-filter sdMetaEnvy)
+(provide assign newAlloc alloc-join prettyPrintAllocDist allocDist-filter sdMetaEnvy allocDist-update)
 
 (struct allocRecord (agent resource prob))
 
@@ -10,6 +10,11 @@
                     [else #false])]))
 
 (struct allocDist (records  numDistsMerged))
+
+(define (allocDist-update alloc prob)
+  (allocDist (map (lambda (x) (allocRecord (allocRecord-agent x) (allocRecord-resource x) prob))
+                  (allocDist-records alloc))
+             (allocDist-numDistsMerged alloc)))
 
 (define (allocDist-filter dist agent)
   (define (adf-helper distRecs)
@@ -33,7 +38,14 @@
 
 ;Gives weak-Stochastic Dominance for dist 1 over dist2 under metaPrefence record metaPrefs.
 (define (sdMetaEnvy dist1 dist2 metaPrefs cdfAcc cdfAccPip)
-  (cond [(empty? metaPrefs) cdfAccPip]
+  (cond [(empty? metaPrefs)
+         (cond [cdfAccPip  (display "Envy on resource:")
+                           ;(display (first metaPrefs))
+                           (display "\n")
+                           (prettyPrintAllocDist dist1)
+                           (prettyPrintAllocDist dist2)
+                           #true]
+               [else #false])]
         [else
          (define localCDFDiff (sdEnvy dist1 dist2 (first metaPrefs)))
          (cond [(< ( + localCDFDiff cdfAcc) 0) ;(display "Envy on resource:")
@@ -62,8 +74,9 @@
         [else (insertSingleRecord allocList item)]))
 
 ;; agentList mustn't be empty!
-(define (assign alloc agentList resource)
-  (allocDist (insertRecord (allocDist-records alloc)  (cons (allocRecord agentList resource 1.0) empty))
+(define (assign alloc agentList resource prob)
+  ;(printf "Prob is ~a" prob)
+  (allocDist (insertRecord (allocDist-records alloc)  (cons (allocRecord agentList resource prob) empty))
              (cond [(> (allocDist-numDistsMerged alloc) 0) (allocDist-numDistsMerged alloc)]
                    [else 1])))
 
@@ -98,7 +111,8 @@
                 (display "->")
                 (display (allocRecord-resource rec))
                 (display " : " )
-                (display (/ (allocRecord-prob rec) (allocDist-numDistsMerged dist)))
+                ;(display (/ (allocRecord-prob rec) (allocDist-numDistsMerged dist)))
+                (display (/ 1.0 (allocRecord-prob rec)))
                 (display "\n")
                 (ppHelper (rest lst))]))
   (display "Total paths: ")
