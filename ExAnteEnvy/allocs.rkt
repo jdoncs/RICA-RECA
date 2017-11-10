@@ -101,5 +101,8 @@
                 (display (/ (allocRecord-prob rec) (allocDist-numDistsMerged dist)))
                 (display "\n")
                 (ppHelper (rest lst))]))
+  (display "Total paths: ")
+  (display (allocDist-numDistsMerged dist))
+  (display "\n")
   (ppHelper (allocDist-records dist)))
   

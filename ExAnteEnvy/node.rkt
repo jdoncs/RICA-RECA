@@ -26,18 +26,21 @@
                                                     (not (= (nodeSplit-agent (first children)) x)))
                                                     agents)))
                             (helper (rest children) (rest alloc) resources agents))]))
-  (display "\n\nEntering\n")
-  (prettyPrintProfile (first (node-profile mynode)))
+  ;(display "\n\nEntering\n")
+  ;(prettyPrintProfile (first (node-profile mynode)))
+  ;(prettyPrintMetaProfile (node-profile mynode))
   (cond [(empty? (node-profile mynode)) (node-alloc mynode)]
         [(empty? (first (node-profile mynode)))
          ;(display "Merging things...\n")
+         ;(prettyPrintAllocDist (node-alloc mynode))
+         ;(read)
                  (cond [(empty? (rest (node-profile mynode))) (node-alloc mynode)]
                        [else (define nextProf
                                (profileFilter
                                 (profileAgentFilter (first (rest (node-profile mynode)))
                                                      (node-agentsRemaining mynode))
                                 (node-resourcesRemaining mynode)))
-                             (prettyPrintProfile nextProf)
+                             ;(prettyPrintProfile nextProf)
                              (node-expand (node (cons nextProf (rest (rest (node-profile mynode))))
                                                 (node-alloc mynode)
                                                 (node-resourcesRemaining mynode)
@@ -63,12 +66,14 @@
   
   (define prof (genMetaProf (cons (/ numPrefs 3) (cons (/ numPrefs 3) (cons (/ numPrefs 3) empty)))
                             numAgents numResources))
-  (prettyPrintMetaProfile prof)
+  ;(prettyPrintMetaProfile prof)
   (define result (node-expand (node prof (newAlloc) (build-list numResources values)
                                     (map (lambda (x) (+ x 1)) (build-list numAgents values)))))
-  (prettyPrintAllocDist result)
-  (cond [(= n 0) (display "No issues.")]
-        [(profileIsEnvyFree? prof result) (reps (- n 1))]
+  ;(prettyPrintAllocDist result)
+  (cond [(profileIsEnvyFree? prof result)
+         (cond  [(= n 1) (display "No issues.")]
+                [else (reps (- n 1))])]
         [else (display "Found envy!!!\n")
+              (prettyPrintMetaProfile prof)
               (prettyPrintAllocDist result)]))
-(reps 1)
+(reps 100)

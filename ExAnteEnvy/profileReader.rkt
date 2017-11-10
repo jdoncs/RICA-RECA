@@ -78,7 +78,7 @@
   (cond [(empty? prefs) empty]
         [(member resource (record-prefList (first prefs)))
          (cons (nodeSplit (record-agent (first prefs)) resource
-                          (cons (removeResource (append beforeMe (rest prefs)) resource) metaPrefs))
+                          (cons (removeResource (append beforeMe (rest prefs)) resource) (rest metaPrefs)))
                (resolve (rest prefs) (cons (first prefs) beforeMe) resource metaPrefs))]
         [else (resolve (rest prefs) (cons (first prefs) beforeMe) resource metaPrefs)]))
 
