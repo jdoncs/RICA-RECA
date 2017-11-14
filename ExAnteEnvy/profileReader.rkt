@@ -64,30 +64,38 @@
 (define (metaifyRecord metaProf agent)
   (cond [(empty? metaProf) empty]
         [else
-              (define rec (filter (lambda (x) (= agent (record-agent x))) (first metaProf)))
-              (define located (cond [(empty? rec) empty]
-                                    [else (record-prefList (first rec))]))
-              (cond [(empty? located) (metaifyRecord (rest metaProf) agent)]
-                    [else (cons located (metaifyRecord (rest metaProf) agent))])]))
+         (define rec (filter (lambda (x) (= agent (record-agent x))) (first metaProf)))
+         (define located (cond [(empty? rec) empty]
+                               [else (record-prefList (first rec))]))
+         (cond [(empty? located) (metaifyRecord (rest metaProf) agent)]
+               [else (cons located (metaifyRecord (rest metaProf) agent))])]))
 
 (define (metaRecordSmooth metaProf agent metaRecord)
   (cond [(empty? metaProf) empty]
-        [else (cons
-               (map (lambda (x) (cond [(= (record-agent x) agent)
-                                       (record agent (cond [(empty? metaRecord) empty]
-                                                           [else (first metaRecord)]))]
-                                      [else x])) (first metaProf))
+        [else
+           (define inProf (foldl (lambda (x y) (cond [(= (record-agent x) agent) #t]
+                                                     [else y]))
+                                 #f (first metaProf)))
+           (define nextPart (cond [(empty? metaRecord) empty]
+                                  [else (first metaRecord)]))
+           (define augmentedProf (cond [inProf (map (lambda (x) (cond [(= (record-agent x) agent)
+                                                                       (record agent nextPart)]
+                                                                      [else x]))
+                                                    (first metaProf))]
+                                       [else (cons (record agent nextPart) (first metaProf))]))
+           
+         (cons augmentedProf
                (metaRecordSmooth (rest metaProf) agent (cond [(empty? metaRecord) empty]
-                                                           [else (rest metaRecord)])))]))
+                                                             [else (rest metaRecord)])))]))
               
         
 
 (define (metaProfRectify metaProf agentList)
-  (cond [(empty? agentList) empty]
+  (cond [(empty? agentList) metaProf]
         [else
-              (define rec (metaifyRecord metaProf (first agentList)))
-              (metaProfRectify (metaRecordSmooth metaProf (first agentList) (metaRecordRectify rec))
-                               (rest agentList))]))
+         (define rec (metaifyRecord metaProf (first agentList)))
+         (metaProfRectify (metaRecordSmooth metaProf (first agentList) (metaRecordRectify rec))
+                          (rest agentList))]))
   
 
 (define (profileAgentFilter prof allowed)
@@ -96,12 +104,12 @@
 ;Filters out rows in prof for any agents that do not also appear in otherProf
 (define (profileSubsetFilter prof otherProf)
   ;(prettyPrintProfile prof)
-   ; (prettyPrintProfile otherProf)
-   (cond [(empty? prof) empty]
-         [(empty? otherProf) empty]
-         [(= (record-agent (first prof)) (record-agent (first otherProf)))
-          (cons (first prof) (profileFilter (rest prof) (rest otherProf)))]
-         [else (profileFilter (rest prof) (otherProf))]))
+  ; (prettyPrintProfile otherProf)
+  (cond [(empty? prof) empty]
+        [(empty? otherProf) empty]
+        [(= (record-agent (first prof)) (record-agent (first otherProf)))
+         (cons (first prof) (profileFilter (rest prof) (rest otherProf)))]
+        [else (profileFilter (rest prof) (otherProf))]))
             
 
 (define (resolve prefs beforeMe resource metaPrefs)
@@ -135,13 +143,13 @@
          (define res  (whichResourceNextHelper prefs (rest resources)))
          (define localCount (countOccurances prefs (first resources)))
          ;(printf "Counted ~a for ~a~n" localCount (first resources))
-        (cond [(= localCount 0) res]
-              [(or (< localCount (countThingy-count res)) (= (countThingy-count res) -1))
-               (countThingy localCount (cons (first resources) empty))]
-              [(= localCount (countThingy-count res))
-               ;(printf "~a count = ~a count~n" (first resources) (countThingy-list res))
-               (countThingy localCount (cons (first resources) (countThingy-list res)))]
-              [else res])]))
+         (cond [(= localCount 0) res]
+               [(or (< localCount (countThingy-count res)) (= (countThingy-count res) -1))
+                (countThingy localCount (cons (first resources) empty))]
+               [(= localCount (countThingy-count res))
+                ;(printf "~a count = ~a count~n" (first resources) (countThingy-list res))
+                (countThingy localCount (cons (first resources) (countThingy-list res)))]
+               [else res])]))
 
 (define (whichResourceNext prefProfile resourceSet)
   ;(prettyPrintProfile prefProfile) 
@@ -156,77 +164,77 @@
         [else resourceSet]))
 
 (define (RSDwhichNext prefProfile resourceSet)
-  (display "RSD Stub!\n")
-  )
+  (define topPrefs (foldl (lambda (x y) (cons (first (record-prefList x)) y)) empty prefProfile))
+  topPrefs)
 
 
-(define (enumResources profile)
-  (cond [(empty? profile) empty]
-        [(union (record-prefList (first profile)) (enumResources (rest profile)))]))
+  (define (enumResources profile)
+    (cond [(empty? profile) empty]
+          [(union (record-prefList (first profile)) (enumResources (rest profile)))]))
 
 
 
-;These methods facilitate reading in a profile.
-;A profile is a list of pairs. The first element of the pair is an id number.
-; the second element is a list of numbers representing the resources that the agent prefers.
-(define (read-line numPrefs)
-  (cond [ (> numPrefs 0) (cons (read) (read-line (- numPrefs 1)))]
-        [else null]))
+  ;These methods facilitate reading in a profile.
+  ;A profile is a list of pairs. The first element of the pair is an id number.
+  ; the second element is a list of numbers representing the resources that the agent prefers.
+  (define (read-line numPrefs)
+    (cond [ (> numPrefs 0) (cons (read) (read-line (- numPrefs 1)))]
+          [else null]))
 
-(define (read-record numPrefs agentID)
-  (record agentID (read-line numPrefs)))
+  (define (read-record numPrefs agentID)
+    (record agentID (read-line numPrefs)))
 
-(define (readProfile numPrefs numAgents)
-  (cond [ (> numAgents 0) (cons (read-record numPrefs numAgents) (readProfile numPrefs (- numAgents 1)))]
-        [ (eq? numAgents 1) (read-record numPrefs numAgents) ]
-        [ else empty ]))
+  (define (readProfile numPrefs numAgents)
+    (cond [ (> numAgents 0) (cons (read-record numPrefs numAgents) (readProfile numPrefs (- numAgents 1)))]
+          [ (eq? numAgents 1) (read-record numPrefs numAgents) ]
+          [ else empty ]))
 
-(define (random-record numPrefs agentID maxRes)
-  (define (random-record-helper numPrefs accList)
-  (cond [(> numPrefs 0)
-         (define candidate (random maxRes))
-         (cond [(member candidate accList) (random-record-helper numPrefs accList)]
-               [else (random-record-helper (- numPrefs 1) (cons candidate accList))])]
-        [else accList]))
-  (record agentID (random-record-helper numPrefs empty)))
+  (define (random-record numPrefs agentID maxRes)
+    (define (random-record-helper numPrefs accList)
+      (cond [(> numPrefs 0)
+             (define candidate (random maxRes))
+             (cond [(member candidate accList) (random-record-helper numPrefs accList)]
+                   [else (random-record-helper (- numPrefs 1) (cons candidate accList))])]
+            [else accList]))
+    (record agentID (random-record-helper numPrefs empty)))
 
-(define (genProfile numPrefs numRecs numResources)
-  (cond [(> numRecs 0) (cons (random-record numPrefs numRecs numResources)
-                             (genProfile numPrefs (- numRecs 1) numResources))]
-        [else empty]))
+  (define (genProfile numPrefs numRecs numResources)
+    (cond [(> numRecs 0) (cons (random-record numPrefs numRecs numResources)
+                               (genProfile numPrefs (- numRecs 1) numResources))]
+          [else empty]))
 
-(define (genMetaProf eqClassSizes numRecs numResources)
-  (define tmpProf (genProfile (foldl + 0 eqClassSizes) numRecs numResources))
-  (define (recordChop prefs inset size)
-    (cond [(empty? prefs) empty]
-          [(= size 0) empty]
-          [(> inset 0) (recordChop (rest prefs) (- inset 1) size)]
-          [(> size 0) (cons (first prefs) (recordChop (rest prefs) inset (- size 1)))]))
-  (define (profChop prof inset size)
-    (cond [(empty? prof) empty]
-          [else (cons (record (record-agent (first prof))
-                         (recordChop (record-prefList (first prof)) inset size))
-                 (profChop (rest prof) inset size))]))
-  (define (makeMetaProfs prof eqClassSizes inset)
-    (cond [(empty? eqClassSizes) empty]
-          [else (cons (profChop prof inset (first eqClassSizes))
-                      (makeMetaProfs prof (rest eqClassSizes) (+ inset (first eqClassSizes))))]))
-  (makeMetaProfs tmpProf eqClassSizes 0))
+  (define (genMetaProf eqClassSizes numRecs numResources)
+    (define tmpProf (genProfile (foldl + 0 eqClassSizes) numRecs numResources))
+    (define (recordChop prefs inset size)
+      (cond [(empty? prefs) empty]
+            [(= size 0) empty]
+            [(> inset 0) (recordChop (rest prefs) (- inset 1) size)]
+            [(> size 0) (cons (first prefs) (recordChop (rest prefs) inset (- size 1)))]))
+    (define (profChop prof inset size)
+      (cond [(empty? prof) empty]
+            [else (cons (record (record-agent (first prof))
+                                (recordChop (record-prefList (first prof)) inset size))
+                        (profChop (rest prof) inset size))]))
+    (define (makeMetaProfs prof eqClassSizes inset)
+      (cond [(empty? eqClassSizes) empty]
+            [else (cons (profChop prof inset (first eqClassSizes))
+                        (makeMetaProfs prof (rest eqClassSizes) (+ inset (first eqClassSizes))))]))
+    (makeMetaProfs tmpProf eqClassSizes 0))
   
-(define (prettyPrintMetaProfile mprof)
-  (cond [(empty? mprof) (display "-----\n")]
-        [else (prettyPrintProfile (first mprof))
-              (prettyPrintMetaProfile (rest mprof))]))
+  (define (prettyPrintMetaProfile mprof)
+    (cond [(empty? mprof) (display "-----\n")]
+          [else (prettyPrintProfile (first mprof))
+                (prettyPrintMetaProfile (rest mprof))]))
 
-(define (prettyPrintProfile prof)
-  (cond [(empty? prof) (display "\n")]
-        [else (define this (first prof))
-              (display "Agent ")
-              (display (record-agent this))
-              (display ": ")
-              (display (record-prefList this))
-              (display "\n")
-              (prettyPrintProfile (rest prof))]))
+  (define (prettyPrintProfile prof)
+    (cond [(empty? prof) (display "\n")]
+          [else (define this (first prof))
+                (display "Agent ")
+                (display (record-agent this))
+                (display ": ")
+                (display (record-prefList this))
+                (display "\n")
+                (prettyPrintProfile (rest prof))]))
 
 
-;(prettyPrintMetaProfile (genMetaProf '(1 2 3) 4 6))
+  ;(prettyPrintMetaProfile (genMetaProf '(1 2 3) 4 6))

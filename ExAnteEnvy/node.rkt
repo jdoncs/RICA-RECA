@@ -47,6 +47,7 @@
                                 (profileAgentFilter (first (rest (node-profile mynode)))
                                                      (node-agentsRemaining mynode))
                                 (node-resourcesRemaining mynode)))
+                             ;(display "Next Prof!!\n")
                              ;(prettyPrintProfile nextProf)
                              (node-expand (node (metaProfRectify
                                                  (cons nextProf (rest (rest (node-profile mynode))))
@@ -57,9 +58,9 @@
                                                 (node-probHere mynode)))])]
         [else
          ;(display "looped\n")
-         (define targetResource (whichResourceNext (first (node-profile mynode)) (node-resourcesRemaining mynode)))
+         ;(define targetResource (whichResourceNext (first (node-profile mynode)) (node-resourcesRemaining mynode)))
          ;(display (node-resourcesRemaining mynode))
-         ;(define targetResource (RSDwhichNext (first (node-profile mynode)) (node-resourcesRemaining mynode)))
+         (define targetResource (RSDwhichNext (first (node-profile mynode)) (node-resourcesRemaining mynode)))
          ;(display targetResource)
          ;(display "\n")
          
@@ -89,16 +90,17 @@
 (define (reps n)
   (printf "~a \n" n)
   
-  (define prof (genMetaProf '(2 2 1 1) 
+  (define prof (genMetaProf '(2 2 2) 
                             numAgents numResources))
   ;(prettyPrintMetaProfile prof)
   (define result (node-expand (node prof (newAlloc) (build-list numResources values)
                                     (map (lambda (x) (+ x 1)) (build-list numAgents values)) 1.0)))
   ;(prettyPrintAllocDist result)
   (cond [(profileIsEnvyFree? prof result)
-         (cond  [(= n 1) (display "No issues.")]
+         (cond  [(= n 1) (display "No issues.") 0]
                 [else (reps (- n 1))])]
         [else (display "Found envy!!!\n")
               (prettyPrintMetaProfile prof)
-              (prettyPrintAllocDist result)]))
-(reps 10000)
+              (prettyPrintAllocDist result)
+              (+ 1 (reps (- n 1)))]))
+(reps 1000)

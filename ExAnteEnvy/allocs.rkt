@@ -54,7 +54,7 @@
                                                ;(prettyPrintAllocDist dist1)
                                                ;(prettyPrintAllocDist dist2)
                                                #false]
-               [(> ( + localCDFDiff cdfAcc) 0.01)
+               [(> ( + localCDFDiff cdfAcc) 0.0000001)
                 (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) #true)]
                [else (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) cdfAccPip)])]))
                            
