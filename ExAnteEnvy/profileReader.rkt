@@ -1,7 +1,7 @@
 #lang racket
 (provide readProfile whichResourceNext resolve nodeSplit-agent nodeSplit-resource nodeSplit-profile
          enumResources genProfile profileFilter profileSubsetFilter genMetaProf prettyPrintMetaProfile
-         prettyPrintProfile profileIsEnvyFree? profileAgentFilter)
+         prettyPrintProfile profileIsEnvyFree? profileAgentFilter RSDwhichNext metaProfRectify)
 (require "allocs.rkt")
 
 (struct nodeSplit (agent resource profile))
@@ -58,6 +58,38 @@
                             (filter (lambda (x) (member x allowed)) (record-prefList (first prof))))
                     (profileFilter (rest prof) allowed))]))
 
+(define (metaRecordRectify metaRecord)
+  (filter (lambda (x) (not (empty? x))) metaRecord))
+
+(define (metaifyRecord metaProf agent)
+  (cond [(empty? metaProf) empty]
+        [else
+              (define rec (filter (lambda (x) (= agent (record-agent x))) (first metaProf)))
+              (define located (cond [(empty? rec) empty]
+                                    [else (record-prefList (first rec))]))
+              (cond [(empty? located) (metaifyRecord (rest metaProf) agent)]
+                    [else (cons located (metaifyRecord (rest metaProf) agent))])]))
+
+(define (metaRecordSmooth metaProf agent metaRecord)
+  (cond [(empty? metaProf) empty]
+        [else (cons
+               (map (lambda (x) (cond [(= (record-agent x) agent)
+                                       (record agent (cond [(empty? metaRecord) empty]
+                                                           [else (first metaRecord)]))]
+                                      [else x])) (first metaProf))
+               (metaRecordSmooth (rest metaProf) agent (cond [(empty? metaRecord) empty]
+                                                           [else (rest metaRecord)])))]))
+              
+        
+
+(define (metaProfRectify metaProf agentList)
+  (cond [(empty? agentList) empty]
+        [else
+              (define rec (metaifyRecord metaProf (first agentList)))
+              (metaProfRectify (metaRecordSmooth metaProf (first agentList) (metaRecordRectify rec))
+                               (rest agentList))]))
+  
+
 (define (profileAgentFilter prof allowed)
   (filter (lambda (x) (member (record-agent x) allowed)) prof))
          
@@ -95,22 +127,37 @@
          (+ 1 (countOccurances (rest prefs) resource))]
         [else (countOccurances (rest prefs) resource)]))
 
+(struct countThingy (count list))
+
 (define (whichResourceNextHelper prefs resources)
-  (cond [(empty? resources) (cons -1 (cons -1 empty))]
-        [(= (countOccurances prefs (first resources)) 0)
-         (whichResourceNextHelper prefs (rest resources))]
-        [(or (< (countOccurances prefs (first resources))
-                (first (whichResourceNextHelper prefs (rest resources))))
-             (= (first (whichResourceNextHelper prefs (rest resources))) -1))
-         (cons (countOccurances prefs (first resources)) (cons (list (first resources)) empty))]
-        [(= (countOccurances prefs (first resources))
-            (first (whichResourceNextHelper prefs (rest resources))))
-         (list (countOccurances prefs (first resources))
-               (cons (first resources) (rest (whichResourceNextHelper prefs (rest resources))) ))]
-        [else (whichResourceNextHelper prefs (rest resources))]))
+  (cond [(empty? resources) (countThingy -1 empty)]
+        [else
+         (define res  (whichResourceNextHelper prefs (rest resources)))
+         (define localCount (countOccurances prefs (first resources)))
+         ;(printf "Counted ~a for ~a~n" localCount (first resources))
+        (cond [(= localCount 0) res]
+              [(or (< localCount (countThingy-count res)) (= (countThingy-count res) -1))
+               (countThingy localCount (cons (first resources) empty))]
+              [(= localCount (countThingy-count res))
+               ;(printf "~a count = ~a count~n" (first resources) (countThingy-list res))
+               (countThingy localCount (cons (first resources) (countThingy-list res)))]
+              [else res])]))
 
 (define (whichResourceNext prefProfile resourceSet)
-  (second (whichResourceNextHelper prefProfile resourceSet)))
+  ;(prettyPrintProfile prefProfile) 
+  ;(display (countThingy-list (whichResourceNextHelper prefProfile resourceSet)))
+  (countThingy-list (whichResourceNextHelper prefProfile resourceSet)))
+
+(define (picker resourceSet)
+  (define (helper resourceSet idx)
+    (cond [(= idx 0) (first resourceSet)]
+          [else (helper (rest resourceSet) (- idx 1))]))
+  (cond [(list? resourceSet) (helper resourceSet (random (length resourceSet)))]
+        [else resourceSet]))
+
+(define (RSDwhichNext prefProfile resourceSet)
+  (display "RSD Stub!\n")
+  )
 
 
 (define (enumResources profile)

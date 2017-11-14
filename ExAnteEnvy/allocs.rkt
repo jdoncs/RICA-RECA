@@ -54,7 +54,7 @@
                                                ;(prettyPrintAllocDist dist1)
                                                ;(prettyPrintAllocDist dist2)
                                                #false]
-               [(> ( + localCDFDiff cdfAcc) 0)
+               [(> ( + localCDFDiff cdfAcc) 0.01)
                 (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) #true)]
                [else (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) cdfAccPip)])]))
                            
@@ -112,7 +112,8 @@
                 (display (allocRecord-resource rec))
                 (display " : " )
                 ;(display (/ (allocRecord-prob rec) (allocDist-numDistsMerged dist)))
-                (display (/ 1.0 (allocRecord-prob rec)))
+                ;(display (/ 1.0 (allocRecord-prob rec)))
+                (display (allocRecord-prob rec))
                 (display "\n")
                 (ppHelper (rest lst))]))
   (display "Total paths: ")
