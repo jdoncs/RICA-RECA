@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class EQclass implements Comparable<EQclass>{
 	int mLevel;
@@ -26,6 +27,11 @@ public class EQclass implements Comparable<EQclass>{
 	
 	public ArrayList<Integer> getAgents(){
 		return Agents;
+	}
+	
+	public int getRandomAgent() {
+		Collections.shuffle(Agents);
+		return Agents.get(0);
 	}
 
 	@Override
