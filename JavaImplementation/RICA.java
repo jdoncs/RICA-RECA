@@ -26,7 +26,7 @@ public class RICA {
 		Kvalue = Integer.parseInt(linearray[6]);
 
 		int Agent = 0;
-		int level = 1;
+		int level = 0;
 	
 		
 		while (scanner.hasNextLine()) {
@@ -47,7 +47,7 @@ public class RICA {
 				level++;
 			}
 			Agent++;
-			level = 1;
+			level = 0;
 			
 			
 		}
@@ -68,14 +68,15 @@ public class RICA {
 			Pair key = (Pair) EQclass_list.keySet().toArray()[i];
 			EQclass value = EQclass_list.get(key);
 			for(int k = 0; k < value.getAgents().size(); k++) {
-				if(value.getAgents().get(k).equals(Agent)) {
-					value.getAgents().remove(k);
-					if(value.mLevel == 1) {
+				int currentagent = value.getAgents().get(k);
+				if(currentagent == Agent) {
+					value.getAgents().remove(currentagent);
+					if(value.mLevel == 0) {
 						
 					}
 					else {
 						Pair newpair = new Pair(value.mLevel - 1, value.mResource);
-						EQclass_list.get(newpair).Agents.add(k);
+						EQclass_list.get(newpair).Agents.add(currentagent);
 					}
 					
 				}
@@ -99,8 +100,9 @@ public class RICA {
 			Pair key = (Pair) EQclass_list.keySet().toArray()[i];
 			EQclass value = EQclass_list.get(key);
 			for(int k = 0; k < value.getAgents().size(); k++) {
-				if(value.getAgents().get(k).equals(Agent)) {
-					value.getAgents().remove(k);
+				int currentagent = value.getAgents().get(k);
+				if(currentagent == Agent) {
+					value.getAgents().remove(Agent);
 					shiftingAgents.addAll(value.getAgents());
 				}
 			}
@@ -115,7 +117,7 @@ public class RICA {
 		PrintWriter pw = new PrintWriter(new File("Alloc.txt"));
         StringBuilder sb = new StringBuilder();
         
-		int currentEQ = 1;
+		int currentEQ = 0;
 		int maxsize = EQclass_list.size();
 		int currentsize = maxsize;
 		Pair mxkey = new Pair(null,null);
@@ -133,8 +135,8 @@ public class RICA {
 				
 				
 			}
-			if(currentEQ == Kvalue) {
-				currentEQ = 1;
+			if(currentEQ == Kvalue - 1) {
+				currentEQ = 0;
 			}
 			else currentEQ++;
 			currentsize = maxsize;
