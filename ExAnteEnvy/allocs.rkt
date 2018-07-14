@@ -1,20 +1,35 @@
 #lang racket
-(provide assign newAlloc alloc-join prettyPrintAllocDist allocDist-filter sdMetaEnvy allocDist-update)
+(provide assign newAlloc alloc-join prettyPrintAllocDist allocDist-filter sdMetaEnvy
+         allocDist-InitUniform)
+(require math/flonum)
 
+; An allocRecord lists the id of an agent and a resource, with a probability of that assignment
+;  occuring.
 (struct allocRecord (agent resource prob))
 
+; An allocDist is a list of allocRecords, along with a count of the total number
+;  of such record that have been compressed together to make this one.
+;  Note that the probabilities in the stored records need to be normalized by numDistsMerged to
+;   have semantic meaning.
+(struct allocDist (records  numDistsMerged))
+
+
+;;;;;;;;;;;Some utility methods for the data structures above...;;;;;;;;;;;;;;;;
+
+; Defines a lexicographic ordering over allocRecords, based on their agent and then resource id's.
+;  Inputs: r1 & r2: allocRecords.
+;  Output: #true if r1 precedes r2 in the lexicographic ordering.
 (define (record-lt r1 r2)
   (cond [(< (allocRecord-agent r1) (allocRecord-agent r2)) #true]
         [(< (allocRecord-agent r2) (allocRecord-agent r1)) #false]
         [else (cond [(< (allocRecord-resource r1) (allocRecord-resource r2)) #true]
                     [else #false])]))
 
-(struct allocDist (records  numDistsMerged))
-
-(define (allocDist-update alloc prob)
+;Used to initialzie
+(define (allocDist-InitUniform ad prob)
   (allocDist (map (lambda (x) (allocRecord (allocRecord-agent x) (allocRecord-resource x) prob))
-                  (allocDist-records alloc))
-             (allocDist-numDistsMerged alloc)))
+                  (allocDist-records ad))
+             (allocDist-numDistsMerged ad)))
 
 (define (allocDist-filter dist agent)
   (define (adf-helper distRecs)
@@ -39,12 +54,7 @@
 ;Gives weak-Stochastic Dominance for dist 1 over dist2 under metaPrefence record metaPrefs.
 (define (sdMetaEnvy dist1 dist2 metaPrefs cdfAcc cdfAccPip)
   (cond [(empty? metaPrefs)
-         (cond [cdfAccPip  (display "Envy on resource:")
-                           ;(display (first metaPrefs))
-                           (display "\n")
-                           (prettyPrintAllocDist dist1)
-                           (prettyPrintAllocDist dist2)
-                           #true]
+         (cond [cdfAccPip #true]
                [else #false])]
         [else
          (define localCDFDiff (sdEnvy dist1 dist2 (first metaPrefs)))
@@ -54,13 +64,10 @@
                                                ;(prettyPrintAllocDist dist1)
                                                ;(prettyPrintAllocDist dist2)
                                                #false]
-               [(> ( + localCDFDiff cdfAcc) 0.0000001)
+               [(> ( + localCDFDiff cdfAcc) 0)
                 (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) #true)]
                [else (sdMetaEnvy dist1 dist2 (rest metaPrefs) (+ cdfAcc localCDFDiff) cdfAccPip)])]))
                            
-
-
-;(struct node (profileList))
 
 (define (newAlloc) (allocDist empty 0))
 
@@ -75,7 +82,6 @@
 
 ;; agentList mustn't be empty!
 (define (assign alloc agentList resource prob)
-  ;(printf "Prob is ~a" prob)
   (allocDist (insertRecord (allocDist-records alloc)  (cons (allocRecord agentList resource prob) empty))
              (cond [(> (allocDist-numDistsMerged alloc) 0) (allocDist-numDistsMerged alloc)]
                    [else 1])))
@@ -92,14 +98,8 @@
                     (alloc-join-helper (rest this) (rest other)))]))
 
 (define (alloc-join this other)
-  ;(display "Joining!\n")
-  ;(prettyPrintAllocDist this)
-  ;(display "with:\n")
-  ;(prettyPrintAllocDist other)
   (define res (allocDist (alloc-join-helper (allocDist-records this) (allocDist-records other))
              (+ (allocDist-numDistsMerged this) (allocDist-numDistsMerged other))))
-  ;(display "makes:\n")
-  ;(prettyPrintAllocDist res)
   res
     )
 
@@ -111,8 +111,6 @@
                 (display "->")
                 (display (allocRecord-resource rec))
                 (display " : " )
-                ;(display (/ (allocRecord-prob rec) (allocDist-numDistsMerged dist)))
-                ;(display (/ 1.0 (allocRecord-prob rec)))
                 (display (allocRecord-prob rec))
                 (display "\n")
                 (ppHelper (rest lst))]))

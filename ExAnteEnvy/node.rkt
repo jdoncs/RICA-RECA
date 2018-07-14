@@ -2,6 +2,12 @@
 (require "profileReader.rkt")
 (require "allocs.rkt")
 
+#|Notes for next time
+- Strong envy seems like fail whale (i.e. we consistenly lose, likely due to giving top preferences
+  more certainly).
+- Check weak envy for RSD? Seems like a long shot.
+- Then check the giving of top preferences (seems like we win here routinely). 
+|# 
 (struct node (profile alloc resourcesRemaining agentsRemaining probHere))
 
 (define (getAgentList myNodeSplits)
@@ -12,95 +18,99 @@
 ; with the assignments implied by myNodeSplits added in.
 (define (generateNextAlloc mynode myNodeSplits agentList agLen)
   (cond [(empty? agentList) empty]
-        [else (cons (assign (allocDist-update (node-alloc mynode)
-                                              (* (node-probHere mynode) (/ 1.0 agLen)))
+        [else (cons (assign (allocDist-InitUniform (node-alloc mynode)
+                                              (* (node-probHere mynode) (/ 1 agLen)))
                             (first agentList) (nodeSplit-resource (first myNodeSplits))
-                            (* (node-probHere mynode) (/ 1.0 agLen)))
+                            (* (node-probHere mynode) (/ 1 agLen)))
                     (generateNextAlloc mynode (rest myNodeSplits) (rest agentList) agLen))]))
 
+(define (filterAndRectifyProfile mynode)
+  (rectifyIndiffClasses
+   (map (lambda (x)  (profileFilter x (node-agentsRemaining mynode) (node-resourcesRemaining mynode)))
+                             (node-profile mynode))
+   (node-agentsRemaining mynode)))
 
-(define (node-expand mynode)
-  (define (helper children alloc resources agents probUpdate)
-    (cond [(empty? children) (newAlloc)]
-          [else (alloc-join (node-expand (node
-                                          (nodeSplit-profile (first children)) (first alloc)
-                                          (filter (lambda (x)
-                                                    (not (= x (nodeSplit-resource (first children)))))
-                                                    resources)
-                                          (filter (lambda (x)
-                                                    (not (= (nodeSplit-agent (first children)) x)))
-                                                    agents)
-                                          probUpdate))
-                            (helper (rest children) (rest alloc) resources agents probUpdate))]))
-  ;(display "\n\nEntering\n")
-  ;(prettyPrintProfile (first (node-profile mynode)))
-  ;(prettyPrintMetaProfile (node-profile mynode))
-  ;(prettyPrintAllocDist (node-alloc mynode))
+
+(define (updateNodeProfile mynode newProf)
+  (node newProf (node-alloc mynode) (node-resourcesRemaining mynode) (node-agentsRemaining mynode)
+        (node-probHere mynode)))
+  
+(define (node-expand mynode RSDMode)
+  (define (helper children allocs resources agents probUpdate)
+    (foldl (lambda (alloc child results)
+             (define candidateNode (node (nodeSplit-profile child) alloc
+                                         (remove (nodeSplit-resource child) resources)
+                                         (remove (nodeSplit-agent child) agents) probUpdate))
+             (alloc-join
+              (node-expand
+               (if RSDMode (updateNodeProfile candidateNode (filterAndRectifyProfile candidateNode))
+                   candidateNode) RSDMode) results))
+           (newAlloc) allocs children))
   (cond [(empty? (node-profile mynode)) (node-alloc mynode)]
         [(empty? (first (node-profile mynode)))
-         ;(display "Merging things...\n")
-         ;(prettyPrintAllocDist (node-alloc mynode))
-         ;(read)
                  (cond [(empty? (rest (node-profile mynode))) (node-alloc mynode)]
-                       [else (define nextProf 
-                               (profileFilter
-                                (profileAgentFilter (first (rest (node-profile mynode)))
-                                                     (node-agentsRemaining mynode))
-                                (node-resourcesRemaining mynode)))
-                             ;(display "Next Prof!!\n")
-                             ;(prettyPrintProfile nextProf)
-                             (node-expand (node (metaProfRectify
-                                                 (cons nextProf (rest (rest (node-profile mynode))))
-                                                 (node-agentsRemaining mynode))
-                                                (node-alloc mynode)
-                                                (node-resourcesRemaining mynode)
-                                                (node-agentsRemaining mynode)
-                                                (node-probHere mynode)))])]
+                       [else (node-expand (updateNodeProfile
+                                           mynode (filterAndRectifyProfile mynode)) RSDMode)])]
         [else
-         ;(display "looped\n")
-         ;(define targetResource (whichResourceNext (first (node-profile mynode)) (node-resourcesRemaining mynode)))
-         ;(display (node-resourcesRemaining mynode))
-         (define targetResource (RSDwhichNext (first (node-profile mynode)) (node-resourcesRemaining mynode)))
-         ;(display targetResource)
-         ;(display "\n")
-         
-         ;(define children (resolve (first (node-profile mynode)) empty targetResource (node-profile mynode)))
+         (define targetResource ((if RSDMode RSDwhichNext whichResourceNext) (first (node-profile mynode)) (node-resourcesRemaining mynode)))
          (define children (genKids targetResource mynode))
          (define alloc (generateNextAlloc mynode children (getAgentList children) (length children)))
-
-         (define result (helper children alloc (node-resourcesRemaining mynode) (node-agentsRemaining mynode) (* (node-probHere mynode) (/ 1.0 (length children)))))
-         ;(display "Backing up from ")
-         ;(display (prettyPrintAllocDist result))
-          result])
-  )
+         (helper children alloc (node-resourcesRemaining mynode) (node-agentsRemaining mynode)
+                 (* (node-probHere mynode) (/ 1 (length children))))]))
 
 (define (genKids resList mynode)
   (cond [(empty? resList) empty]
         [(list? resList) (append
-                          (resolve (first (node-profile mynode)) empty (first resList)
-                                   (node-profile mynode))
+                          (splitOnResource (first resList) (first (node-profile mynode)) 
+                                           (node-profile mynode))
                           (genKids (rest resList) mynode))]
-        [else (resolve (first (node-profile mynode)) empty resList (node-profile mynode))]))
+        [else (splitOnResource resList (first (node-profile mynode))  (node-profile mynode))]))
 
 
-(define numPrefs (read))
-(define numAgents (read))
-(define numResources (read))
+(define numAgents 5)
+(define numResources 5)
+(define simReps 1000)
+(define-struct results (RICA-envy RSD-envy RICA-time RSD-time))
 
 (define (reps n)
-  (printf "~a \n" n)
-  
-  (define prof (genMetaProf '(2 2 2) 
+  (if (= 0 (remainder n 100)) (printf "~a \n" n) #false)
+
+  (random-seed n)
+  (define prof (genMetaProf '(3 2) 
                             numAgents numResources))
-  ;(prettyPrintMetaProfile prof)
+  (define localStart (current-seconds))
   (define result (node-expand (node prof (newAlloc) (build-list numResources values)
-                                    (map (lambda (x) (+ x 1)) (build-list numAgents values)) 1.0)))
-  ;(prettyPrintAllocDist result)
-  (cond [(profileIsEnvyFree? prof result)
-         (cond  [(= n 1) (display "No issues.") 0]
-                [else (reps (- n 1))])]
-        [else (display "Found envy!!!\n")
-              (prettyPrintMetaProfile prof)
-              (prettyPrintAllocDist result)
-              (+ 1 (reps (- n 1)))]))
-(reps 1000)
+                                    (map (lambda (x) (+ x 1)) (build-list numAgents values)) 1)
+                              #false))
+  (define afterRICA (current-seconds))
+  (define RSDresult (node-expand (node prof (newAlloc) (build-list numResources values)
+                                       (map (lambda (x) (+ x 1)) (build-list numAgents values)) 1)
+                                 #true))
+  (define afterRSD (current-seconds))
+  (define numEnvious (countEnviousAgents prof result))
+  (define RSDnumEnvious (countEnviousAgents prof RSDresult))
+  #|(if (> numEnvious RSDnumEnvious) (begin
+                                     (printf "Seed: ~a\nRICA:~a\nRSD:~a\n"
+                                             n
+                                             numEnvious
+                                             RSDnumEnvious)
+                                     (prettyPrintMetaProfile prof)
+                                     (prettyPrintAllocDist result)
+                                     (prettyPrintAllocDist RSDresult)
+                                     (error "WTF!!!")) #true)|#
+  (define sum-record (if (= n 0) 1 (reps (- n 1))))
+  (cond [(= n 0) (make-results 0 0 0 0)]
+        [else (make-results
+               (+ numEnvious (results-RICA-envy sum-record))
+               (+ RSDnumEnvious (results-RSD-envy sum-record))
+               (+ (- afterRICA localStart) (results-RICA-time sum-record))
+               (+ (- afterRSD afterRICA) (results-RSD-time sum-record)))]))
+
+(define simResult (reps simReps))
+
+(printf "RICA:\n\tAverage Envy: ~a\n\tAverage Time: ~a\n\nRSD:\n\tAverage Envy: ~a\n\tAverage Time: ~a\n"
+        (* 100.0 (/ (results-RICA-envy simResult) (* numAgents simReps)))
+        (* 100.0 (/ (results-RICA-time simResult) simReps))
+        (* 100.0 (/ (results-RSD-envy simResult) (* numAgents simReps)))
+        (* 100.0 (/ (results-RSD-time simResult) simReps)))
+        
